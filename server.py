@@ -13,7 +13,7 @@ market_prices = {}
 
 # Initialize order books and market prices
 for stock in stock_symbols:
-    order_book['buy'][stock] = []
+    order_book['buy'][stock] = []  # Stores orders as {'trader', 'price', 'quantity', 'timestamp'}
     order_book['sell'][stock] = []
     market_prices[stock] = random.randint(100, 150)  # Initial stock price
 
@@ -41,15 +41,17 @@ class Trader:
         price_options = [best_bid, best_ask, mid_price]
         price = random.choice(price_options) if order_book['buy'][stock] or order_book['sell'][stock] else market_price * random.choice([1.05, 0.95])
 
+        timestamp = time.time()
+        
         if order_type == 'buy':
             if self.cash >= price * 1000:
-                order_book['buy'][stock].append({'trader': self, 'price': price, 'quantity': 1000})
+                order_book['buy'][stock].append({'trader': self, 'price': price, 'quantity': 1000, 'timestamp': timestamp})
                 print(f"✅ Trader {self.trader_id} placed BUY order for {stock} at ${price:.2f}")
             else:
                 print(f"❌ Trader {self.trader_id} FAILED to place BUY order for {stock} (Not enough cash)")
         elif order_type == 'sell':
             if self.portfolio[stock] >= 1000:
-                order_book['sell'][stock].append({'trader': self, 'price': price, 'quantity': 1000})
+                order_book['sell'][stock].append({'trader': self, 'price': price, 'quantity': 1000, 'timestamp': timestamp})
                 print(f"✅ Trader {self.trader_id} placed SELL order for {stock} at ${price:.2f}")
             else:
                 print(f"❌ Trader {self.trader_id} FAILED to place SELL order for {stock} (Not enough stocks)")
@@ -64,12 +66,13 @@ class Trader:
 traders = [Trader(i + 1, random.randint(50000, 500000)) for i in range(5)]
 
 def match_orders(stock):
-    buy_orders = sorted(order_book['buy'][stock], key=lambda x: x['price'], reverse=True)
-    sell_orders = sorted(order_book['sell'][stock], key=lambda x: x['price'])
+    # Sort orders by price-time priority (highest price first for buy, lowest for sell; if equal, oldest order first)
+    order_book['buy'][stock].sort(key=lambda x: (-x['price'], x['timestamp']))
+    order_book['sell'][stock].sort(key=lambda x: (x['price'], x['timestamp']))
 
-    while buy_orders and sell_orders:
-        buy_order = buy_orders[0]
-        sell_order = sell_orders[0]
+    while order_book['buy'][stock] and order_book['sell'][stock]:
+        buy_order = order_book['buy'][stock][0]
+        sell_order = order_book['sell'][stock][0]
 
         if buy_order['price'] >= sell_order['price']:
             trade_price = (buy_order['price'] + sell_order['price']) / 2
@@ -79,13 +82,10 @@ def match_orders(stock):
             sell_order['trader'].portfolio[stock] -= 1000
             print(f"🔄 Trade executed: {stock} at ${trade_price:.2f} (Trader {buy_order['trader'].trader_id} ↔ Trader {sell_order['trader'].trader_id})")
             market_prices[stock] = trade_price
-            buy_orders.pop(0)
-            sell_orders.pop(0)
+            order_book['buy'][stock].pop(0)
+            order_book['sell'][stock].pop(0)
         else:
             break
-
-    order_book['buy'][stock] = buy_orders
-    order_book['sell'][stock] = sell_orders
 
 def simulate_trading_day():
     trading_seconds = 30
